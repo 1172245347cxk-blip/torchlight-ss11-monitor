@@ -1,0 +1,49 @@
+name: 🔔 火炬之光 SS11 监控（每10分钟尝试）
+
+on:
+  # 注意：GitHub 实际不会严格每10分钟运行，免费账户通常每小时1次
+  schedule:
+    - cron: '*/10 * * * *'  # 每10分钟（UTC时间）
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🕒 北京时间
+        run: echo "当前北京时间: $(TZ='Asia/Shanghai' date)"
+
+      - name: 📡 检查公告（每10分钟逻辑）
+        env:
+          SENDKEY: ${{ secrets.SENDKEY }}
+        run: |
+          python3 <<'EOF'
+          import requests, os, sys, time
+
+          JSON_URL = "https://website.xdcdn.net/form/website/torchlight/news_cn.json"
+          LAST_ID = "buYaN1rB"
+
+          try:
+              data = requests.get(JSON_URL, timeout=10).json()
+              latest = data["zh-cn"]["announcement"][0]
+              curr_id = latest["link"].split("id=")[-1]
+              title = latest["title"]
+              link = latest["link"]
+
+              print(f"ID: {curr_id} | Title: {title}")
+
+              if curr_id != LAST_ID and ("SS11" in title or "渴瘾症" in title):
+                  print("🎉 发现 SS11 公告！")
+                  msg = f"标题：{title}\\n\\n链接：{link}"
+                  resp = requests.post(
+                      f"https://sctapi.ftqq.com/{os.getenv('SENDKEY')}.send",
+                      data={"title": "🔥 SS11公告发布！", "desp": msg}
+                  )
+                  print("推送结果:", resp.status_code)
+              else:
+                  print("ℹ️ 无新公告")
+
+          except Exception as e:
+              print("❌ 错误:", e)
+              sys.exit(1)
+          EOF
