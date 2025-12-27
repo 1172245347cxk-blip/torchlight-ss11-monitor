@@ -1,21 +1,14 @@
-name: 🔔 火炬之光 SS11 公告监控
-
+name: Torchlight SS11 Monitor
 on:
   schedule:
-    - cron: '*/10 * * * *'   # 名义上每10分钟（实际≈每小时）
-  workflow_dispatch:         # 允许手动触发
-
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 检出代码
-        uses: actions/checkout@v4
-
-      - name: 🐍 安装依赖
-        run: pip install requests
-
-      - name: 🚀 运行监控脚本
+      - uses: actions/checkout@v4
+      - run: pip install requests
+      - run: python monitor_ss11.py
         env:
           SENDKEY: ${{ secrets.SENDKEY }}
-        run: python monitor_ss11.py
