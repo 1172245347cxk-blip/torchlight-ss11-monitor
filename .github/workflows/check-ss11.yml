@@ -1,4 +1,4 @@
-name: 🔔 火炬之光 SS11 公告监控
+name: Torchlight SS11 Monitor
 
 on:
   schedule:
@@ -6,22 +6,17 @@ on:
   workflow_dispatch:
 
 jobs:
-  check_announcement:
+  check:
     runs-on: ubuntu-latest
     steps:
-      - name: 🕒 显示时间
-        run: |
-          echo "UTC: $(date -u)"
-          echo "北京时间: $(TZ='Asia/Shanghai' date)"
-
-      - name: 📥 安装依赖
+      - name: Install requests
         run: pip install requests
 
-      - name: 📡 检查公告并推送微信
+      - name: Check announcement
         env:
           SENDKEY: ${{ secrets.SENDKEY }}
         run: |
-          python3 <<'EOF'
+          python3 - <<'PYSCRIPT'
 import requests
 import os
 import sys
@@ -30,29 +25,19 @@ JSON_URL = "https://website.xdcdn.net/form/website/torchlight/news_cn.json"
 LAST_KNOWN_ID = "buYaN1rB"
 
 try:
-    print("正在获取公告数据...")
-    resp = requests.get(JSON_URL, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
-    
+    data = requests.get(JSON_URL, timeout=10).json()
     latest = data["zh-cn"]["announcement"][0]
     current_id = latest["link"].split("id=")[-1]
     title = latest["title"]
-    link = latest["link"]
-    
-    print(f"最新公告 ID: {current_id}")
-    print(f"标题: {title}")
     
     if current_id != LAST_KNOWN_ID and ("SS11" in title or "渴瘾症" in title):
-        print("🎉 检测到 SS11 赛季公告！")
-        message = f"标题：{title}\n\n链接：{link}"
-        push_url = f"https://sctapi.ftqq.com/{os.getenv('SENDKEY')}.send"
-        result = requests.post(push_url, data={"title": "🔥 火炬之光 SS11 公告已发布！", "desp": message})
-        print("推送状态:", result.status_code)
+        msg = f"标题：{title}\n\n链接：{latest['link']}"
+        url = f"https://sctapi.ftqq.com/{os.getenv('SENDKEY')}.send"
+        requests.post(url, data={"title": "🔥 SS11公告发布！", "desp": msg})
+        print("Sent!")
     else:
-        print("ℹ️ 未发现符合条件的新公告。")
-        
+        print("No update.")
 except Exception as e:
-    print("❌ 错误:", str(e))
+    print("Error:", e)
     sys.exit(1)
-EOF
+PYSCRIPT
