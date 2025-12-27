@@ -9,35 +9,27 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Install requests
-        run: pip install requests
-
-      - name: Check announcement
+      - name: Check announcement and send WeChat
         env:
           SENDKEY: ${{ secrets.SENDKEY }}
         run: |
-          python3 - <<'PYSCRIPT'
-import requests
-import os
-import sys
-
-JSON_URL = "https://website.xdcdn.net/form/website/torchlight/news_cn.json"
-LAST_KNOWN_ID = "buYaN1rB"
-
+          python3 -c "
+import requests; import os; import sys;
+JSON_URL = 'https://website.xdcdn.net/form/website/torchlight/news_cn.json';
+LAST_KNOWN_ID = 'buYaN1rB';
 try:
-    data = requests.get(JSON_URL, timeout=10).json()
-    latest = data["zh-cn"]["announcement"][0]
-    current_id = latest["link"].split("id=")[-1]
-    title = latest["title"]
-    
-    if current_id != LAST_KNOWN_ID and ("SS11" in title or "渴瘾症" in title):
-        msg = f"标题：{title}\n\n链接：{latest['link']}"
-        url = f"https://sctapi.ftqq.com/{os.getenv('SENDKEY')}.send"
-        requests.post(url, data={"title": "🔥 SS11公告发布！", "desp": msg})
-        print("Sent!")
-    else:
-        print("No update.")
+  data = requests.get(JSON_URL, timeout=10).json();
+  latest = data['zh-cn']['announcement'][0];
+  current_id = latest['link'].split('id=')[-1];
+  title = latest['title'];
+  if current_id != LAST_KNOWN_ID and ('SS11' in title or '渴瘾症' in title):
+    msg = f'标题：{title}\\n\\n链接：{latest[\"link\"]}';
+    url = f'https://sctapi.ftqq.com/{os.getenv(\"SENDKEY\")}.send';
+    requests.post(url, data={'title': '🔥 SS11公告发布！', 'desp': msg});
+    print('Sent!');
+  else:
+    print('No update.');
 except Exception as e:
-    print("Error:", e)
-    sys.exit(1)
-PYSCRIPT
+  print('Error:', str(e));
+  sys.exit(1);
+          "
