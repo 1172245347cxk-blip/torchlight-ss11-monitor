@@ -1,15 +1,21 @@
-name: Torchlight SS11 Monitor
+name: 🔔 火炬之光 SS11 公告监控
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch:
+    - cron: '*/10 * * * *'   # 名义上每10分钟（实际≈每小时）
+  workflow_dispatch:         # 允许手动触发
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Check announcement and send WeChat
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🐍 安装依赖
+        run: pip install requests
+
+      - name: 🚀 运行监控脚本
         env:
           SENDKEY: ${{ secrets.SENDKEY }}
-        run: "python3 -c \"import requests, os, sys; d = requests.get('https://website.xdcdn.net/form/website/torchlight/news_cn.json', timeout=10).json(); a = d['zh-cn']['announcement'][0]; cid = a['link'].split('id=')[-1]; title = a['title']; link = a['link']; last_id = 'buYaN1rB'; if cid != last_id and ('SS11' in title or '渴瘾症' in title): msg = f'标题：{title}\\n\\n链接：{link}'; requests.post(f'https://sctapi.ftqq.com/{os.getenv(\\\"SENDKEY\\\")}.send', data={'title': '🔥 SS11公告发布！', 'desp': msg}); print('Sent!'); else: print('No update.');\""
+        run: python monitor_ss11.py
