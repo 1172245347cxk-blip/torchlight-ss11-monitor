@@ -1,55 +1,58 @@
-name: 🔔 火炬之光 SS11 公告监控（每10分钟尝试）
+name: 🔔 火炬之光 SS11 公告监控
 
 on:
   schedule:
-    - cron: '*/10 * * * *'   # 每10分钟（UTC时间）——实际执行频率受GitHub限制
-  workflow_dispatch:         # 允许手动触发
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
 
 jobs:
   check_announcement:
     runs-on: ubuntu-latest
     steps:
-      - name: 🕒 显示当前北京时间
+      - name: 🕒 显示时间
         run: |
-          echo "UTC 时间: $(date -u)"
+          echo "UTC: $(date -u)"
           echo "北京时间: $(TZ='Asia/Shanghai' date)"
 
-      - name: 📡 检查最新公告并推送微信
+      - name: 📥 安装依赖
+        run: pip install requests
+
+      - name: 📡 检查公告并推送微信
         env:
           SENDKEY: ${{ secrets.SENDKEY }}
         run: |
-          python3 -c "
+          python3 <<'EOF'
 import requests
 import os
 import sys
 
-JSON_URL = 'https://website.xdcdn.net/form/website/torchlight/news_cn.json'
-LAST_KNOWN_ID = 'buYaN1rB'
+JSON_URL = "https://website.xdcdn.net/form/website/torchlight/news_cn.json"
+LAST_KNOWN_ID = "buYaN1rB"
 
 try:
-    print('正在获取公告数据...')
+    print("正在获取公告数据...")
     resp = requests.get(JSON_URL, timeout=10)
     resp.raise_for_status()
     data = resp.json()
     
-    latest = data['zh-cn']['announcement'][0]
-    current_id = latest['link'].split('id=')[-1]
-    title = latest['title']
-    link = latest['link']
+    latest = data["zh-cn"]["announcement"][0]
+    current_id = latest["link"].split("id=")[-1]
+    title = latest["title"]
+    link = latest["link"]
     
-    print(f'最新公告 ID: {current_id}')
-    print(f'标题: {title}')
+    print(f"最新公告 ID: {current_id}")
+    print(f"标题: {title}")
     
-    if current_id != LAST_KNOWN_ID and ('SS11' in title or '渴瘾症' in title):
-        print('🎉 检测到 SS11 赛季公告！')
-        message = f'标题：{title}\\n\\n链接：{link}'
-        push_url = f'https://sctapi.ftqq.com/{os.getenv(\"SENDKEY\")}.send'
-        result = requests.post(push_url, data={'title': '🔥 火炬之光 SS11 公告已发布！', 'desp': message})
-        print('推送状态:', result.status_code)
+    if current_id != LAST_KNOWN_ID and ("SS11" in title or "渴瘾症" in title):
+        print("🎉 检测到 SS11 赛季公告！")
+        message = f"标题：{title}\n\n链接：{link}"
+        push_url = f"https://sctapi.ftqq.com/{os.getenv('SENDKEY')}.send"
+        result = requests.post(push_url, data={"title": "🔥 火炬之光 SS11 公告已发布！", "desp": message})
+        print("推送状态:", result.status_code)
     else:
-        print('ℹ️ 未发现符合条件的新公告。')
+        print("ℹ️ 未发现符合条件的新公告。")
         
 except Exception as e:
-    print('❌ 错误:', str(e))
+    print("❌ 错误:", str(e))
     sys.exit(1)
-          "
+EOF
