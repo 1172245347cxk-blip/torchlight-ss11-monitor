@@ -30,7 +30,7 @@ try:
 
     print(f"ID: {current_id} | 标题: {title}")
 
-    if current_id != LAST_KNOWN_ID and ("SS11" in title or "渴瘾症" in title):
+    if current_id != LAST_KNOWN_ID:
         print("🎉 检测到 SS11 赛季公告！")
         message = f"标题：{title}\n\n链接：{link}"
         sendkey = os.getenv("SENDKEY")
