@@ -9,7 +9,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # === 配置区（手动更新这里！）===
 # 替换为当前最新公告的 ID（从链接中提取）
-LAST_KNOWN_CN_ID = "1"   # 👈 国服最新公告 ID
+LAST_KNOWN_CN_ID = "buYaN1rB"   # 👈 国服最新公告 ID
 LAST_KNOWN_EN_ID = "i9ncluYb82HD"   # 👈 国际服最新公告 ID（若无，可设为空字符串）
 
 CN_NEWSLIST_URL = "https://website.xdcdn.net/form/website/torchlight/news_cn.json"
@@ -119,7 +119,7 @@ def main():
             if cn_id and cn_id != LAST_KNOWN_CN_ID:
                 print(f"🆕 发现国服新公告: {cn_title}")
                 full_content = fetch_news_json(cn_id, "cn")
-                # send_wechat(cn_title, cn_link, "【国服】")
+                send_wechat(cn_title, cn_link, "【国服】")
                 save_to_gist(cn_title, cn_link, full_content, "国服")
                 updated = True
             else:
@@ -143,7 +143,7 @@ def main():
             if en_id and en_id != LAST_KNOWN_EN_ID:
                 print(f"🌍 发现国际服新公告: {en_title}")
                 full_content = fetch_news_json(en_id, "en")
-                # send_wechat(en_title, en_link, "【国际服】")
+                send_wechat(en_title, en_link, "【国际服】")
                 save_to_gist(en_title, en_link, full_content, "国际服")
                 updated = True
             else:
