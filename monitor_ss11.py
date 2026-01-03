@@ -1,165 +1,161 @@
-# monitor_ss11.py
-import requests
 import os
-import sys
+import requests
 import urllib3
-import json
 from datetime import datetime
-from bs4 import BeautifulSoup
+from urllib.parse import urlparse, parse_qs
 
+# 禁用 SSL 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# === 配置 ===
-CN_LIST_URL = "https://website.xdcdn.net/form/website/torchlight/news_cn.json"
-EN_LIST_URL = "https://website.xdcdn.net/form/website/torchlight/news.json"
+# === 配置区（手动更新这里！）===
+# 替换为当前最新公告的 ID（从链接中提取）
+LAST_KNOWN_CN_ID = "1"   # 👈 国服最新公告 ID
+LAST_KNOWN_EN_ID = "i9ncluYb82HD"   # 👈 国际服最新公告 ID（若无，可设为空字符串）
 
-LAST_KNOWN_CN_ID = "buYaN1rB"
-LAST_KNOWN_EN_ID = "i9ncluYb82HD"
+CN_NEWSLIST_URL = "https://website.xdcdn.net/form/website/torchlight/news_cn.json"
+EN_NEWSLIST_URL = "https://website.xdcdn.net/form/website/torchlight/news.json"
 
 SENDKEY = os.getenv("SENDKEY")
 GIST_TOKEN = os.getenv("GIST_TOKEN")
 
-if not SENDKEY:
-    print("❌ 未设置 SENDKEY")
-    sys.exit(1)
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-}
-PROXIES = {"http": None, "https": None}
-
-def safe_get(url, use_headers=True):
-    return requests.get(
-        url,
-        headers=HEADERS if use_headers else {},
-        timeout=15,
-        verify=False,
-        proxies=PROXIES
-    )
-
-def extract_news_content(detail_url):
-    """从公告详情页提取纯文本内容"""
+def send_wechat(title, link, prefix=""):
+    if not SENDKEY:
+        print("❌ 未设置 SENDKEY，跳过微信推送")
+        return False
+    url = f"https://sctapi.ftqq.com/{SENDKEY}.send"
+    data = {
+        "title": f"{prefix}【火炬之光 SS11】{title}",
+        "desp": f"[查看公告]({link})\n\n> 检测时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    }
     try:
-        resp = safe_get(detail_url)
-        resp.encoding = 'utf-8'
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        
-        # 定位正文容器
-        detail_div = soup.find('div', id='news-detail')
-        if not detail_div:
-            return "⚠️ 未能提取公告正文（结构可能已变更）"
-        
-        # 移除不需要的元素（如分享按钮）
-        for elem in detail_div.select('.social-share, .share-btn, script, style'):
-            elem.decompose()
-        
-        # 获取纯文本，保留段落结构
-        text = detail_div.get_text(separator='\n', strip=True)
-        # 清理多余空行
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
-        return '\n\n'.join(lines)
+        resp = requests.post(url, data=data, timeout=10)
+        success = resp.status_code == 200 and resp.json().get("code") == 0
+        print(f"✅ 微信推送成功: {title}" if success else f"⚠️ 推送失败: {resp.text}")
+        return success
     except Exception as e:
-        return f"⚠️ 提取正文失败: {str(e)}"
+        print(f"⚠️ 微信推送异常: {e}")
+        return False
 
-def send_wechat(title, link, source):
-    message = f"来源：{source}\n标题：{title}\n\n链接：{link}"
-    resp = requests.post(
-        f"https://sctapi.ftqq.com/{SENDKEY}.send",
-        data={"title": "🔥 火炬之光新公告！", "desp": message},
-        proxies=PROXIES
-    )
-    return resp.status_code == 200
 
-def save_to_gist(title, link, content, source):
+def save_to_gist(title, link, content, region):
     if not GIST_TOKEN:
         print("⚠️ 未设置 GIST_TOKEN，跳过保存快照")
         return False
-
+    headers = {"Authorization": f"token {GIST_TOKEN}"}
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    filename = f"{source}_{now.replace(':', '-')}.md"
-    
-    gist_content = f"""# {title}
-
-- **来源**: {source}
-- **检测时间**: {now}
-- **原始链接**: {link}
-
----
-
-{content}
-"""
-
-    gist_data = {
-        "description": f"火炬之光公告全文快照 - {source} - {title}",
+    filename = f"torchlight-{region}-{now.replace(':', '-')}.txt"
+    data = {
+        "description": f"【{region}】{title}",
         "public": False,
-        "files": {filename: {"content": gist_content}}
+        "files": {
+            filename: {
+                "content": f"标题: {title}\n链接: {link}\n时间: {now}\n\n---\n\n{content}"
+            }
+        }
     }
-
     try:
-        resp = requests.post(
-            "https://api.github.com/gists",
-            headers={"Authorization": f"token {GIST_TOKEN}"},
-            data=json.dumps(gist_data),
-            proxies=PROXIES
-        )
+        resp = requests.post("https://api.github.com/gists", headers=headers, json=data, timeout=15)
         if resp.status_code == 201:
-            print(f"✅ 全文快照已保存至 Gist: {resp.json()['html_url']}")
+            gist_id = resp.json()["id"]
+            print(f"✅ 全文快照已保存至 Gist: https://gist.github.com/{gist_id}")
             return True
         else:
-            print(f"❌ Gist 创建失败: {resp.status_code}")
+            print(f"⚠️ Gist 保存失败: {resp.text}")
             return False
     except Exception as e:
-        print(f"💥 保存 Gist 出错: {e}")
+        print(f"⚠️ Gist 保存异常: {e}")
         return False
 
-# ===== 主逻辑 =====
-try:
-    print("🌍 正在检查《火炬之光》国服与国际服公告...")
+
+def extract_news_id(detail_url: str) -> str:
+    parsed = urlparse(detail_url)
+    return parse_qs(parsed.query).get("id", [None])[0]
+
+
+def fetch_news_json(news_id: str, region: str = "cn") -> str:
+    if not news_id:
+        return "⚠️ 无效公告 ID"
+    folder = "news_cn" if region == "cn" else "news/en"
+    json_url = f"http://website.xdcdn.net/form/website/torchlight/{folder}/{news_id}.json"
+    try:
+        print(f"📥 获取公告 JSON: {json_url}")
+        resp = requests.get(
+            json_url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=10,
+            verify=False,
+            proxies={"http": None, "https": None}
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        content_html = data.get("content", "")
+        if not content_html:
+            return "⚠️ JSON 中无 content 字段"
+
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(content_html, "html.parser")
+        text = soup.get_text(separator="\n", strip=True)
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        clean_text = "\n\n".join(lines)
+        return clean_text[:8000] + ("\n\n...（内容过长，已截断）" if len(clean_text) > 8000 else "")
+    except Exception as e:
+        return f"⚠️ 获取公告失败: {str(e)}"
+
+
+def main():
+    updated = False
 
     # === 国服检查 ===
     try:
-        cn_resp = safe_get(CN_LIST_URL, use_headers=False)
-        cn_resp.raise_for_status()
+        cn_resp = requests.get(CN_NEWSLIST_URL, timeout=10, verify=False)
         cn_data = cn_resp.json()
-        cn_latest = cn_data["zh-cn"]["announcement"][0]
-        cn_id = cn_latest["link"].split("id=")[-1]
-        cn_title = cn_latest["title"]
-        cn_link = cn_latest["link"]
-        print(f"🇨🇳 国服 | ID: {cn_id} | 标题: {cn_title}")
+        announcements = cn_data.get("zh-cn", {}).get("announcement", [])
+        if announcements:
+            latest = announcements[0]
+            cn_title = latest["title"]
+            cn_link = latest["link"]
+            cn_id = extract_news_id(cn_link)
 
-        if cn_id != LAST_KNOWN_CN_ID:
-            print("🎉 国服有新公告！")
-            full_content = extract_news_content(cn_link)
-            if send_wechat(cn_title, cn_link, "【国服】"):
-                print("✅ 微信通知发送成功！")
-            save_to_gist(cn_title, cn_link, full_content, "国服")
-            sys.exit(0)
+            if cn_id and cn_id != LAST_KNOWN_CN_ID:
+                print(f"🆕 发现国服新公告: {cn_title}")
+                full_content = fetch_news_json(cn_id, "cn")
+                # send_wechat(cn_title, cn_link, "【国服】")
+                save_to_gist(cn_title, cn_link, full_content, "国服")
+                updated = True
+            else:
+                print("🔍 国服无新公告")
+        else:
+            print("⚠️ 国服公告列表为空")
     except Exception as e:
-        print(f"❌ 国服检查失败: {e}")
+        print(f"⚠️ 国服检查失败: {e}")
 
     # === 国际服检查 ===
     try:
-        en_resp = safe_get(EN_LIST_URL, use_headers=False)
-        en_resp.raise_for_status()
+        en_resp = requests.get(EN_NEWSLIST_URL, timeout=10, verify=False)
         en_data = en_resp.json()
-        en_latest = en_data["en"]["announcement"][0]
-        en_id = en_latest["link"].split("id=")[-1]
-        en_title = en_latest["title"]
-        en_link = en_latest["link"]
-        print(f"🇺🇸 国际服 | ID: {en_id} | 标题: {en_title}")
+        announcements = en_data.get("en", {}).get("announcement", [])
+        if announcements:
+            latest = announcements[0]
+            en_title = latest["title"]
+            en_link = latest["link"]
+            en_id = extract_news_id(en_link)
 
-        if en_id != LAST_KNOWN_EN_ID:
-            print("🎉 国际服有新公告！")
-            full_content = extract_news_content(en_link)
-            if send_wechat(en_title, en_link, "【国际服】"):
-                print("✅ 微信通知发送成功！")
-            save_to_gist(en_title, en_link, full_content, "国际服")
-            sys.exit(0)
+            if en_id and en_id != LAST_KNOWN_EN_ID:
+                print(f"🌍 发现国际服新公告: {en_title}")
+                full_content = fetch_news_json(en_id, "en")
+                # send_wechat(en_title, en_link, "【国际服】")
+                save_to_gist(en_title, en_link, full_content, "国际服")
+                updated = True
+            else:
+                print("🔍 国际服无新公告")
+        else:
+            print("⚠️ 国际服公告列表为空")
     except Exception as e:
-        print(f"❌ 国际服检查失败: {e}")
+        print(f"⚠️ 国际服检查失败: {e}")
 
-    print("ℹ️ 国服与国际服均无新公告。")
+    if not updated:
+        print("✅ 无新公告")
 
-except Exception as e:
-    print(f"💥 脚本严重错误: {e}")
-    sys.exit(1)
+
+if __name__ == "__main__":
+    main()
