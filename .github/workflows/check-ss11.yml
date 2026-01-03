@@ -1,14 +1,21 @@
 name: Torchlight SS11 Monitor
+
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '0 */2 * * *'  # 每2小时检查一次（更合理）
   workflow_dispatch:
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install requests
-      - run: python monitor_ss11.py
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Run monitor script
         env:
           SENDKEY: ${{ secrets.SENDKEY }}
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: python monitor_ss11.py
